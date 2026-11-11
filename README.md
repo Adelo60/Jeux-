@@ -3,6 +3,8 @@
 Action-roguelite 3D pour mobile (et PC), jouable dans le navigateur, installable comme une app (PWA).
 
 - **Combat** : combo en 3 coups, esquive avec ralenti sur « esquive parfaite », renvoi des projectiles, attaque de Fureur.
+- **Compétences** : Lance de braise (tir perforant), Tourbillon (zone), Ruée foudroyante (charge), chacune avec son temps de recharge.
+- **Son** : musique adaptative (menu / combat / boss), bruitages et réverbération entièrement synthétisés.
 - **Contenu** : vagues infinies, 3 types d'ennemis, boss toutes les 5 vagues, 11 bénédictions à cumuler, forge d'améliorations permanentes.
 - **Technique** : Three.js, ombres, bloom HDR, particules, sons synthétisés — aucun asset externe, un seul fichier `index.html`.
 

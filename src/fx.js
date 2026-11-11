@@ -106,6 +106,14 @@ const discGeo = new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2);
 const rectGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, 0, 0.5);
 const addMat = (color, op) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
 
+let _soft = null;
+function softTex() {
+  if (_soft) return _soft;
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const r = g.createRadialGradient(64, 64, 0, 64, 64, 64); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.55, 'rgba(255,255,255,.6)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 128, 128); return (_soft = new THREE.CanvasTexture(c));
+}
+
 export class GroundFx {
   constructor(scene) { this.scene = scene; this.items = []; }
   ring(x, z, r0, r1, dur, color = 0xff8a3c, intensity = 2.5) {
@@ -129,6 +137,13 @@ export class GroundFx {
     g.add(out, fill); g.position.set(x, 0.05, z); g.rotation.y = ang; this.scene.add(g);
     const it = { m: g, t: 0, dur, kind: 'rect', fill, w, l }; this.items.push(it); return it;
   }
+  scorch(x, z, r) {
+    const g = new THREE.Group(), tex = softTex();
+    const dark = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ map: tex, color: 0x000000, transparent: true, opacity: 0.75, depthWrite: false })); dark.scale.setScalar(r);
+    const glow = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(3, 0.9, 0.15), transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); glow.scale.setScalar(r * 0.75); glow.position.y = 0.005;
+    g.add(dark, glow); g.position.set(x, 0.035, z); this.scene.add(g);
+    this.items.push({ m: g, t: 0, dur: 8, kind: 'scorch', dark, glow });
+  }
   cancel(it) { if (it) it.t = it.dur; }
   clear() { for (const it of this.items) this.scene.remove(it.m); this.items.length = 0; }
   update(dt) {
@@ -137,7 +152,8 @@ export class GroundFx {
       if (it.kind === 'ring') {
         const e = 1 - (1 - k) * (1 - k);
         it.m.scale.setScalar(it.r0 + (it.r1 - it.r0) * e); it.m.material.opacity = 1 - k;
-      } else if (it.kind === 'tele') it.fill.scale.setScalar(Math.max(0.01, it.r * k));
+      } else if (it.kind === 'scorch') { it.dark.material.opacity = 0.75 * (1 - k * k); it.glow.material.opacity = Math.max(0, 1 - it.t / 1.8) * 0.7; }
+      else if (it.kind === 'tele') it.fill.scale.setScalar(Math.max(0.01, it.r * k));
       else it.fill.scale.set(it.w, 1, Math.max(0.01, it.l * k));
       if (k >= 1) {
         this.scene.remove(it.m);
@@ -147,3 +163,19 @@ export class GroundFx {
     }
   }
 }
+
+// ---------- Étalonnage final : aberration chromatique, teinte ciné, vignette, grain ----------
+export const GradeShader = {
+  uniforms: { tDiffuse: { value: null }, uFx: { value: 0 }, uTime: { value: 0 } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uFx,uTime; varying vec2 vUv;
+    void main(){ vec2 d=vUv-.5; float r2=dot(d,d); vec2 o=d*r2*(.014+.04*uFx);
+      vec3 c=vec3(texture2D(tDiffuse,vUv+o).r,texture2D(tDiffuse,vUv).g,texture2D(tDiffuse,vUv-o).b);
+      float l=dot(c,vec3(.299,.587,.114));
+      c=mix(vec3(l),c,1.14-.55*uFx);
+      c*=mix(vec3(.9,.97,1.15),vec3(1.1,1.,.88),smoothstep(0.,.9,l));
+      c+=vec3(.08,.3,.55)*uFx*.05;
+      c*=1.-r2*(.75+uFx*.9);
+      float n=fract(sin(dot(vUv*vec2(1920.,1080.)+uTime*61.,vec2(12.9898,78.233)))*43758.5453); c*=1.+(n-.5)*.05;
+      gl_FragColor=vec4(max(c,0.),1.); }`,
+};

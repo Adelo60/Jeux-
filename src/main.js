@@ -3,7 +3,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { Particles, Trail, GroundFx } from './fx.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { Particles, Trail, GroundFx, GradeShader } from './fx.js';
 import { buildWorld, ARENA_R } from './world.js';
 import { buildHero, Enemy, DEF } from './actors.js';
 import { initAudio, sfx, setSound, setCombat } from './audio.js';
@@ -17,8 +18,8 @@ const mobile = matchMedia('(pointer:coarse)').matches;
 
 // ---------------- Sauvegarde ----------------
 const SAVE_KEY = 'braise_save_v1';
-const save = { coins: 0, best: 0, meta: { hp: 0, dmg: 0, fury: 0, loot: 0 }, sound: true, quality: 'auto' };
-try { const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (s) { Object.assign(save, s); save.meta = Object.assign({ hp: 0, dmg: 0, fury: 0, loot: 0 }, s.meta); } } catch (e) { /* stockage indisponible */ }
+const save = { coins: 0, best: 0, meta: { hp: 0, dmg: 0, fury: 0, loot: 0, skill: 0 }, sound: true, quality: 'auto' };
+try { const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); if (s) { Object.assign(save, s); save.meta = Object.assign({ hp: 0, dmg: 0, fury: 0, loot: 0, skill: 0 }, s.meta); } } catch (e) { /* stockage indisponible */ }
 const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } };
 
 // ---------------- Rendu ----------------
@@ -30,20 +31,22 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(48, 1, 0.3, 700);
 const fx = new Particles(scene), gfx = new GroundFx(scene), trail = new Trail(scene);
 const world = buildWorld(scene, fx, mobile);
+{ const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(world.envScene, 0.02).texture; scene.environmentIntensity = 0.42; pm.dispose(); }
 
-let composer = null, bloom = null, quality = 'high';
+let composer = null, bloom = null, grade = null, quality = 'high';
 function buildComposer() {
   if (composer) { composer.renderTarget1.dispose(); composer.renderTarget2.dispose(); }
   const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: quality === 'high' && !mobile ? 4 : 0 });
   composer = new EffectComposer(renderer, rt);
   composer.addPass(new RenderPass(scene, camera));
   bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.62, 0.55, 0.92);
-  composer.addPass(bloom); composer.addPass(new OutputPass());
+  grade = new ShaderPass(GradeShader);
+  composer.addPass(bloom); composer.addPass(grade); composer.addPass(new OutputPass());
 }
 function applyQuality() {
   const dpr = window.devicePixelRatio || 1;
   renderer.setPixelRatio(quality === 'high' ? Math.min(dpr, 2) : quality === 'med' ? Math.min(dpr, 1.5) : Math.min(dpr, 1.25));
-  world.sun.castShadow = quality !== 'low';
+  world.sun.castShadow = quality !== 'low'; world.mist.visible = quality !== 'low';
   if (quality !== 'low') buildComposer();
   resize();
 }
@@ -61,16 +64,16 @@ applyQuality();
 // ---------------- État ----------------
 const hero = {
   m: buildHero(), pos: new THREE.Vector3(), face: 0, hp: 100, maxHp: 100, fury: 0, state: 'move', t: 0, step: 0,
-  queued: false, hitDone: false, invuln: 0, dodgeCd: 0, dodgeX: 0, dodgeZ: 1, perfect: false, empower: 0, comboT: 0, lunge: 0, kx: 0, kz: 0,
+  queued: false, hitDone: false, invuln: 0, dodgeCd: 0, dodgeX: 0, dodgeZ: 1, perfect: false, empower: 0, comboT: 0, lunge: 0, kx: 0, kz: 0, cds: [0, 0, 0], spinA: 0, tick: 0, stepT: 0, hitSet: null,
 };
 scene.add(hero.m.root);
 const G = {
   state: 'menu', time: 0, hitstop: 0, slowmo: 0, cine: 0, cineT: null, shakeAmp: 0, wave: 0, queue: [], spawnT: 0, clearT: -1, deadT: -1,
-  enemies: [], shots: [], picks: [], bolts: [], boss: null, scene, camera, hero, fx, gfx, sfx,
+  enemies: [], shots: [], picks: [], bolts: [], lances: [], boss: null, scene, camera, hero, fx, gfx, sfx,
   shake(a) { G.shakeAmp = Math.max(G.shakeAmp, a); },
 };
 let run = null;
-const input = { jx: 0, jy: 0, mx: 0, my: 0, atk: false, atkHeld: false, dodge: false, fury: false, keys: {} };
+const input = { jx: 0, jy: 0, mx: 0, my: 0, atk: false, atkHeld: false, dodge: false, fury: false, skill: -1, keys: {} };
 
 const BOONS = [
   { id: 'dmg', ic: '⚔', n: 'Lame affûtée', d: '+25 % de dégâts', f: r => { r.dmg *= 1.25; } },
@@ -83,15 +86,17 @@ const BOONS = [
   { id: 'fury', ic: '✹', n: 'Rage ancestrale', d: '+50 % de gain de fureur', max: 3, f: r => { r.furyGain *= 1.5; } },
   { id: 'crit', ic: '✦', n: 'Œil du faucon', d: '+15 % de coups critiques (dégâts ×2)', max: 5, f: r => { r.crit += 0.15; } },
   { id: 'shock', ic: '◎', n: 'Onde de choc', d: 'Le 3ᵉ coup du combo libère une onde de feu', f: r => { r.shock += 1; } },
+  { id: 'cdr', ic: '⧗', n: 'Écho', d: 'Compétences rechargées 20 % plus vite', max: 3, f: r => { r.cdr *= 0.8; } },
   { id: 'heal', ic: '✚', n: 'Second souffle', d: 'Rend 50 % des PV', f: () => heal(hero.maxHp * 0.5) },
 ];
 const META = [
   { k: 'hp', n: 'Cœur de braise', d: '+12 PV max par niveau', max: 8, cost: l => 40 + l * 35 },
   { k: 'dmg', n: 'Fil de la lame', d: '+8 % de dégâts par niveau', max: 8, cost: l => 50 + l * 40 },
+  { k: 'skill', n: 'Maîtrise', d: '+12 % de dégâts des compétences par niveau', max: 6, cost: l => 60 + l * 45 },
   { k: 'fury', n: 'Colère contenue', d: '+25 fureur au départ par niveau', max: 4, cost: l => 60 + l * 50 },
   { k: 'loot', n: 'Main avide', d: '+15 % de braises par niveau', max: 6, cost: l => 50 + l * 45 },
 ];
-const BASE_DMG = 12, SWING = [0.33, 0.33, 0.5];
+const BASE_DMG = 12, SWING = [0.33, 0.33, 0.5], SKILL_CD = [5, 8, 10];
 
 // ---------------- UI ----------------
 const show = (id, on = true) => $(id).classList.toggle('hidden', !on);
@@ -115,6 +120,7 @@ function updateHud() {
   const left = G.queue.length + G.enemies.filter(e => !e.dead).length;
   setHud('left', left, v => { $('wavee').textContent = v > 0 ? v + ' ennemi' + (v > 1 ? 's' : '') : ''; });
   setHud('cd', Math.round((hero.dodgeCd / run.dodgeCd) * 20), v => { $('bDodge').style.setProperty('--p', Math.min(100, v * 5) + '%'); });
+  for (let i = 0; i < 3; i++) setHud('s' + i, Math.ceil((hero.cds[i] / (SKILL_CD[i] * run.cdr)) * 25), v => { const b = $('bS' + i); b.style.setProperty('--p', v * 4 + '%'); b.classList.toggle('cool', v > 0); });
   if (G.boss) setHud('boss', Math.max(0, Math.round((G.boss.hp / G.boss.maxHp) * 200)), v => { $('bossfill').style.transform = `scaleX(${v / 200})`; });
 }
 function refreshMenu() {
@@ -148,12 +154,13 @@ function clearField() {
   for (const s of G.shots) scene.remove(s.m); G.shots.length = 0;
   for (const p of G.picks) scene.remove(p.m); G.picks.length = 0;
   for (const b of G.bolts) scene.remove(b.m); G.bolts.length = 0;
+  for (const l of G.lances) scene.remove(l.m); G.lances.length = 0;
   gfx.clear(); G.boss = null; show('boss', false); document.body.classList.remove('cine'); G.cine = 0;
 }
 function newRun() {
   clearField();
-  run = { dmg: 1 + 0.08 * save.meta.dmg, aspd: 1, leech: 0, burn: 0, chain: 0, dodgeCd: 0.75, furyGain: 1, crit: 0.05, shock: 0, coins: 0, banked: 0, kills: 0, revived: false, doubled: false, taken: {} };
-  Object.assign(hero, { hp: 100 + 12 * save.meta.hp, maxHp: 100 + 12 * save.meta.hp, fury: Math.min(100, 25 * save.meta.fury), state: 'move', t: 0, invuln: 1, blink: 0, dodgeCd: 0, empower: 0, comboT: 0, kx: 0, kz: 0, face: PI });
+  run = { dmg: 1 + 0.08 * save.meta.dmg, aspd: 1, leech: 0, burn: 0, chain: 0, dodgeCd: 0.75, furyGain: 1, crit: 0.05, shock: 0, cdr: 1, skill: 1 + 0.12 * save.meta.skill, coins: 0, banked: 0, kills: 0, revived: false, doubled: false, taken: {} };
+  Object.assign(hero, { hp: 100 + 12 * save.meta.hp, maxHp: 100 + 12 * save.meta.hp, fury: Math.min(100, 25 * save.meta.fury), state: 'move', t: 0, invuln: 1, blink: 0, cds: [0, 0, 0], spinA: 0, dodgeCd: 0, empower: 0, comboT: 0, kx: 0, kz: 0, face: PI });
   hero.pos.set(0, 0, 0); G.wave = 0; G.hitstop = G.slowmo = 0; G.deadT = G.clearT = -1; G.time = 0;
   for (const k in hudCache) delete hudCache[k];
   setState('play'); startWave(1);
@@ -278,11 +285,11 @@ function bolt(a, b) {
 }
 
 // ---------------- Héros ----------------
-function pickTarget(aim) {
+function pickTarget(aim, range = 7) {
   let best = null, bs = 1e9;
   for (const e of G.enemies) {
     if (e.dead || e.state === 'spawn') continue;
-    const dx = e.x - hero.pos.x, dz = e.z - hero.pos.z, d = Math.hypot(dx, dz) - e.r; if (d > 7) continue;
+    const dx = e.x - hero.pos.x, dz = e.z - hero.pos.z, d = Math.hypot(dx, dz) - e.r; if (d > range) continue;
     const s = d + Math.abs(angDiff(Math.atan2(dx, dz), aim)) * 2.2; if (s < bs) { bs = s; best = e; }
   }
   return best;
@@ -294,8 +301,21 @@ function startSwing(step, mag, aim) {
   else { if (mag > 0.3) h.face = aim; h.lunge = 1.1 / (0.42 * dur); }
   sfx(step === 2 ? 'heavy' : 'slash');
 }
+const lanceGeo = new THREE.OctahedronGeometry(0.3, 0).scale(0.8, 0.8, 5), lanceMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(4.5, 1.8, 0.3) });
+function useSkill(i, mag, aim) {
+  const h = hero; h.cds[i] = SKILL_CD[i] * run.cdr;
+  const base = mag > 0.3 ? aim : h.face, tg = pickTarget(base, 16);
+  const a = tg && i !== 1 ? Math.atan2(tg.x - h.pos.x, tg.z - h.pos.z) : base;
+  if (i === 0) { // Lance de braise
+    Object.assign(h, { face: a, state: 'attack', t: 0.12, step: 1, queued: false, hitDone: true, lunge: 0 });
+    const m = new THREE.Mesh(lanceGeo, lanceMat); m.position.set(h.pos.x + Math.sin(a) * 1.2, 1.3, h.pos.z + Math.cos(a) * 1.2); m.rotation.y = a; scene.add(m);
+    G.lances.push({ m, vx: Math.sin(a) * 36, vz: Math.cos(a) * 36, life: 0.95, hit: new Set() }); sfx('lance'); G.shake(0.2);
+  } else if (i === 1) Object.assign(h, { state: 'spin', t: 0, tick: 0, spinA: 0 }); // Tourbillon
+  else { Object.assign(h, { face: a, state: 'rush', t: 0, dodgeX: Math.sin(a), dodgeZ: Math.cos(a), invuln: 0.5, hitSet: new Set() }); sfx('rush'); } // Ruée foudroyante
+}
 function updateHero(dt) {
   const h = hero;
+  for (let i = 0; i < 3; i++) h.cds[i] = Math.max(0, h.cds[i] - dt);
   h.invuln = Math.max(0, h.invuln - dt); h.dodgeCd = Math.max(0, h.dodgeCd - dt); h.empower = Math.max(0, h.empower - dt); h.comboT -= dt;
   const mx = input.mx, mz = input.my, mag = Math.min(1, Math.hypot(mx, mz)), aim = Math.atan2(mx, mz);
   let speed = 0, p = 0;
@@ -305,11 +325,14 @@ function updateHero(dt) {
     if (input.fury && h.fury >= 100 && h.state !== 'fury') { Object.assign(h, { state: 'fury', t: 0, hitDone: false, invuln: 1.2, fury: 0 }); sfx('heavy'); }
     else if (input.dodge && h.dodgeCd <= 0 && h.state !== 'fury' && h.state !== 'dodge') {
       const a = mag > 0.2 ? aim : h.face; Object.assign(h, { state: 'dodge', t: 0, dodgeX: Math.sin(a), dodgeZ: Math.cos(a), face: a, invuln: 0.36, perfect: false, dodgeCd: run.dodgeCd }); sfx('dodge');
+    } else if (input.skill >= 0 && (h.state === 'move' || h.state === 'attack')) {
+      if (h.cds[input.skill] > 0) sfx('nocd'); else useSkill(input.skill, mag, aim);
     } else if (input.atk || input.atkHeld) {
       if (h.state === 'move') startSwing(h.comboT > 0 ? (h.step + 1) % 3 : 0, mag, aim); else if (h.state === 'attack') h.queued = true;
     }
     if (h.state === 'move') {
-      if (mag > 0.12) { h.face = angLerp(h.face, aim, dt * 16); h.pos.x += (mx / (Math.hypot(mx, mz) || 1)) * 8.2 * mag * dt; h.pos.z += (mz / (Math.hypot(mx, mz) || 1)) * 8.2 * mag * dt; speed = mag; }
+      if (mag > 0.12) { h.face = angLerp(h.face, aim, dt * 16); h.pos.x += (mx / (Math.hypot(mx, mz) || 1)) * 8.2 * mag * dt; h.pos.z += (mz / (Math.hypot(mx, mz) || 1)) * 8.2 * mag * dt; speed = mag;
+        h.stepT -= dt * mag; if (h.stepT <= 0) { h.stepT = 0.29; sfx('step'); fx.emit(h.pos.x, 0.15, h.pos.z, (Math.random() - 0.5) * 1.5, 0.8, (Math.random() - 0.5) * 1.5, 0.3, 0.26, 0.36, 0.7, 0.5, 0, 2); } }
     } else if (h.state === 'attack') {
       h.t += dt / (SWING[h.step] / run.aspd); p = h.t;
       if (p < 0.42) { h.pos.x += Math.sin(h.face) * h.lunge * dt; h.pos.z += Math.cos(h.face) * h.lunge * dt; }
@@ -325,17 +348,36 @@ function updateHero(dt) {
       h.t += dt / 0.95; p = h.t;
       if (!h.hitDone && p >= 0.52) {
         h.hitDone = true; G.hitstop = 0.13; G.shake(1.1); sfx('fury');
-        gfx.ring(h.pos.x, h.pos.z, 0.5, 11, 0.55, 0xffa040, 4); gfx.ring(h.pos.x, h.pos.z, 0.3, 7, 0.8, 0xff5020, 3);
+        gfx.ring(h.pos.x, h.pos.z, 0.5, 11, 0.55, 0xffa040, 4); gfx.scorch(h.pos.x, h.pos.z, 7); gfx.ring(h.pos.x, h.pos.z, 0.3, 7, 0.8, 0xff5020, 3);
         fx.burst(h.pos.x, 0.3, h.pos.z, 110, [4, 1.6, 0.3], 16, 0.6, 0.8, 10, 0.7);
         for (const e of [...G.enemies]) { if (e.dead || e.state === 'spawn') continue; const dx = e.x - h.pos.x, dz = e.z - h.pos.z, d = Math.hypot(dx, dz) || 1; if (d < 10 + e.r) { G.damageEnemy(e, BASE_DMG * run.dmg * 5.5, { crit: true, kx: dx / d, kz: dz / d, knock: 14, heavy: true }); onHit(e); } }
         for (const s of G.shots) s.life = 0;
       }
       if (p >= 1) h.state = 'move';
+    } else if (h.state === 'spin') {
+      h.t += dt / 1.4; p = h.t; h.spinA += dt * 24; h.tick -= dt;
+      if (mag > 0.12) { const l = Math.hypot(mx, mz) || 1; h.pos.x += (mx / l) * 6.4 * mag * dt; h.pos.z += (mz / l) * 6.4 * mag * dt; }
+      const sa = h.face + h.spinA; fx.emit(h.pos.x + Math.sin(sa) * 3.2, 1.2, h.pos.z + Math.cos(sa) * 3.2, 0, 1, 0, 3.6, 1.4, 0.3, 0.6, 0.35);
+      if (h.tick <= 0) {
+        h.tick = 0.2; sfx('spin'); let n = 0;
+        for (const e of [...G.enemies]) { if (e.dead || e.state === 'spawn') continue; const dx = e.x - h.pos.x, dz = e.z - h.pos.z, d = Math.hypot(dx, dz) || 1; if (d < 4.2 + e.r) { G.damageEnemy(e, BASE_DMG * run.dmg * run.skill * 0.85, { crit: Math.random() < run.crit, kx: dx / d, kz: dz / d, knock: 3 }); onHit(e); n++; } }
+        for (const s of G.shots) if (!s.friendly && Math.hypot(s.m.position.x - h.pos.x, s.m.position.z - h.pos.z) < 4.2) s.life = 0;
+        if (n) { h.fury = Math.min(100, h.fury + 3 * run.furyGain); G.shake(0.14); sfx('hit'); }
+      }
+      if (p >= 1) { h.state = 'move'; h.spinA = 0; }
+    } else if (h.state === 'rush') {
+      h.t += dt / 0.24; p = h.t; h.pos.x += h.dodgeX * 42 * dt; h.pos.z += h.dodgeZ * 42 * dt;
+      for (let k = 0; k < 3; k++) fx.emit(h.pos.x + (Math.random() - 0.5), 0.4 + Math.random() * 1.6, h.pos.z + (Math.random() - 0.5), 0, 0, 0, 0.6, 2.4, 4, 0.7, 0.4);
+      for (const e of [...G.enemies]) {
+        if (e.dead || e.state === 'spawn' || h.hitSet.has(e)) continue; const dx = e.x - h.pos.x, dz = e.z - h.pos.z, sd = Math.sign(dx * h.dodgeZ - dz * h.dodgeX) || 1;
+        if (Math.hypot(dx, dz) < 2.6 + e.r) { h.hitSet.add(e); G.damageEnemy(e, BASE_DMG * run.dmg * run.skill * 4, { crit: true, kx: h.dodgeZ * sd, kz: -h.dodgeX * sd, knock: 8, heavy: true }); onHit(e); G.hitstop = 0.05; G.shake(0.35); sfx('zap'); h.fury = Math.min(100, h.fury + 5 * run.furyGain); }
+      }
+      if (p >= 1) { h.state = 'move'; h.comboT = 0.5; gfx.ring(h.pos.x, h.pos.z, 0.4, 4.5, 0.4, 0x58c8ff, 3); }
     }
   }
-  input.atk = input.dodge = input.fury = false;
+  input.atk = input.dodge = input.fury = false; input.skill = -1;
   const r = Math.hypot(h.pos.x, h.pos.z); if (r > ARENA_R - 0.6) { h.pos.x *= (ARENA_R - 0.6) / r; h.pos.z *= (ARENA_R - 0.6) / r; }
-  h.m.root.position.copy(h.pos); h.m.root.rotation.y = h.face;
+  h.m.root.position.copy(h.pos); h.m.root.rotation.y = h.face + (h.state === 'spin' ? h.spinA : 0);
   h.blink = Math.max(0, (h.blink || 0) - dt); h.m.root.visible = !(h.blink > 0 && Math.floor(h.blink * 20) % 2 === 0);
   h.m.pose({ state: h.state, p, step: h.step, speed, time: G.time }, dt);
   const emp = h.empower > 0;
@@ -366,6 +408,15 @@ function update(dt, rdt) {
     if (!hit && s.friendly) { for (const e of G.enemies) if (!e.dead && e.state !== 'spawn' && Math.hypot(e.x - p.x, e.z - p.z) < e.r + 0.5) { G.damageEnemy(e, BASE_DMG * run.dmg * 2.5, { crit: true, kx: s.vx / 24, kz: s.vz / 24, knock: 6 }); hit = true; break; } }
     else if (!hit && Math.hypot(hero.pos.x - p.x, hero.pos.z - p.z) < 0.85) { const inv = hero.invuln > 0; G.damageHero(s.dmg, p.x - s.vx, p.z - s.vz); hit = !inv; }
     if (hit) { fx.burst(p.x, p.y, p.z, 10, c, 5, 0.3, 0.3); scene.remove(s.m); G.shots.splice(i, 1); }
+  }
+  // lances de braise
+  for (let i = G.lances.length - 1; i >= 0; i--) {
+    const l = G.lances[i], p = l.m.position; p.x += l.vx * dt; p.z += l.vz * dt; l.life -= dt; l.m.rotation.z += dt * 20;
+    for (let k = 0; k < 3; k++) fx.emit(p.x + (Math.random() - 0.5) * 0.5, p.y + (Math.random() - 0.5) * 0.5, p.z + (Math.random() - 0.5) * 0.5, 0, 0.6, 0, 3.6, 1.4, 0.3, 0.6, 0.35);
+    for (const e of [...G.enemies]) if (!e.dead && e.state !== 'spawn' && !l.hit.has(e) && Math.hypot(e.x - p.x, e.z - p.z) < e.r + 1.3) {
+      l.hit.add(e); G.damageEnemy(e, BASE_DMG * run.dmg * run.skill * 3.2, { crit: Math.random() < run.crit, kx: l.vx / 36, kz: l.vz / 36, knock: 7, heavy: true }); onHit(e); G.hitstop = 0.04; G.shake(0.25); sfx('hit');
+    }
+    if (l.life <= 0 || Math.hypot(p.x, p.z) > ARENA_R + 3) { fx.burst(p.x, p.y, p.z, 18, [3.6, 1.4, 0.3], 7, 0.35, 0.4); scene.remove(l.m); G.lances.splice(i, 1); }
   }
   // butin
   const magnet = G.clearT >= 0;
@@ -440,9 +491,11 @@ function frame(now) {
   } else if (G.state === 'menu' || G.state === 'shop') {
     G.time += rdt; hero.m.pose({ state: 'move', p: 0, step: 0, speed: 0, time: G.time }, rdt);
   }
+  world.mood = G.boss && (G.state === 'play' || G.state === 'pause') ? 1 : 0;
+  if (grade) { grade.uniforms.uTime.value = (now / 1000) % 100; grade.uniforms.uFx.value += ((G.state === 'play' && G.slowmo > 0 ? 1 : 0) - grade.uniforms.uFx.value) * Math.min(1, rdt * 8); }
   const live = G.state === 'play' ? rdt * ts : G.state === 'pause' ? 0 : rdt;
   world.update(now / 1000, live, hero.pos); fx.update(live); gfx.update(live);
-  const h = hero, sw = (h.state === 'attack' && h.t > 0.12 && h.t < 0.7) || (h.state === 'fury' && h.t > 0.35 && h.t < 0.7);
+  const h = hero, sw = (h.state === 'attack' && h.t > 0.12 && h.t < 0.7) || (h.state === 'fury' && h.t > 0.35 && h.t < 0.7) || h.state === 'spin' || h.state === 'rush';
   h.m.root.updateWorldMatrix(true, true);
   trail.push(h.m.base.getWorldPosition(tmp), h.m.tip.getWorldPosition(tmp2), sw ? 1 : 0);
   updateCamera(rdt, now);
@@ -474,6 +527,7 @@ function hold(id, down, up) {
 hold('bAtk', () => { input.atk = true; input.atkHeld = true; }, () => { input.atkHeld = false; });
 hold('bDodge', () => { input.dodge = true; });
 hold('bFury', () => { input.fury = true; });
+for (let i = 0; i < 3; i++) hold('bS' + i, () => { input.skill = i; });
 const keyMove = () => {
   const k = input.keys, x = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0), y = (k.KeyS || k.ArrowDown ? 1 : 0) - (k.KeyW || k.ArrowUp ? 1 : 0);
   input.kx = x; input.ky = y;
@@ -483,6 +537,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyJ') { input.atk = true; input.atkHeld = true; }
   if (e.code === 'KeyK' || e.code === 'Space' || e.code === 'ShiftLeft') { input.dodge = true; e.preventDefault(); }
   if (e.code === 'KeyL' || e.code === 'KeyE') input.fury = true;
+  const sk = ['KeyU', 'KeyI', 'KeyO'].indexOf(e.code), dg = ['Digit1', 'Digit2', 'Digit3'].indexOf(e.code); if (sk >= 0 || dg >= 0) input.skill = Math.max(sk, dg);
   if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
 });
 addEventListener('keyup', e => { input.keys[e.code] = false; keyMove(); if (e.code === 'KeyJ') input.atkHeld = false; });

@@ -15,9 +15,9 @@ const lerp = (a, b, t) => a + (b - a) * t;
 // =================== HÉROS ===================
 export function buildHero() {
   const root = new THREE.Group();
-  const armor = std(0x39415a, { roughness: 0.4, metalness: 0.35 });
+  const armor = std(0x5a6688, { roughness: 0.3, metalness: 0.85 });
   const darkM = std(0x15161f, { roughness: 0.8 });
-  const gold = std(0xd9a441, { roughness: 0.3, metalness: 0.6, emissive: 0x3a2200 });
+  const gold = std(0xe6ac48, { roughness: 0.24, metalness: 1, emissive: 0x2a1600 });
   const cloth = std(0x8f1626, { roughness: 0.95, side: THREE.DoubleSide });
   const bladeM = glow(4.2, 1.5, 0.3);
 
@@ -32,6 +32,11 @@ export function buildHero() {
   mesh(new THREE.CylinderGeometry(0.46, 0.3, 0.78, 6), armor, 0, 0.42, 0, torso);
   mesh(box(0.66, 0.14, 0.42), gold, 0, 0.05, 0, torso);
   mesh(box(0.2, 0.3, 0.06), gold, 0, 0.5, 0.36, torso);
+  mesh(new THREE.OctahedronGeometry(0.09, 0), glow(4, 1.5, 0.3), 0, 0.52, 0.41, torso).castShadow = false;
+  mesh(box(0.3, 0.6, 0.03), cloth, 0, -0.3, 0.2, torso);
+  mesh(box(0.3, 0.05, 0.035), gold, 0, -0.56, 0.2, torso);
+  for (const sx of [-1, 1]) mesh(new THREE.ConeGeometry(0.08, 0.34, 4), gold, sx * 0.62, 0.95, 0, torso).rotation.z = -sx * 0.5;
+  root.scale.setScalar(1.08);
   const head = pivot(0, 0.98, 0, torso);
   mesh(new THREE.IcosahedronGeometry(0.22, 1), darkM, 0, 0.05, 0, head);
   mesh(new THREE.ConeGeometry(0.3, 0.42, 6), armor, 0, 0.2, -0.03, head);
@@ -80,6 +85,10 @@ export function buildHero() {
       t.y = 0.95 + Math.sin(Math.min(1, p / 0.5) * PI) * 2.4 * (p < 0.5 ? 1 : 0);
       t.aR = lerp(-3.1, -0.5, k); t.aL = lerp(-3.1, -0.5, k); t.sw = lerp(2.0, 3.0, k); t.lean = lerp(-0.3, 0.6, k);
       t.lL = lerp(-0.8, 0.5, k); t.lR = lerp(-0.6, -0.5, k);
+    } else if (s.state === 'spin') {
+      rate = 30; t.aR = -1.5; t.aRz = 0.2; t.sw = PI / 2 + 1.45; t.aL = -1.2; t.aLz = -1.2; t.lean = 0.12; t.lL = 0.35; t.lR = -0.35; t.y = 0.88;
+    } else if (s.state === 'rush') {
+      rate = 45; t.aR = -1.45; t.sw = PI / 2 + 1.4; t.aL = 0.9; t.lean = 0.75; t.lL = 0.9; t.lR = -0.9; t.y = 0.8;
     } else if (s.state === 'dead') {
       fall = Math.min(1, s.p * 1.6); t.y = lerp(0.95, 0.3, fall); t.aR = -0.4; t.aL = 0.6; t.hd = 0.5;
     }
@@ -90,7 +99,7 @@ export function buildHero() {
     torso.rotation.y = cur.tw; sword.rotation.x = cur.sw; head.rotation.x = cur.hd;
     body.position.y = cur.y; body.rotation.x = cur.lean + roll - fall * 1.5;
     // cape
-    const pa = capeGeo.attributes.position.array, sp = s.state === 'dodge' ? 0.3 : s.speed;
+    const pa = capeGeo.attributes.position.array, sp = s.state === 'dodge' ? 0.3 : s.state === 'rush' || s.state === 'spin' ? 1 : s.speed;
     for (let i = 0; i < pa.length; i += 3) {
       const v = -capeRest[i + 1] / 1.35;
       pa[i + 2] = capeRest[i + 2] - v * v * (0.22 + sp * 0.75) + Math.sin(s.time * (5 + sp * 6) + v * 4 + capeRest[i] * 3) * 0.07 * v * (0.5 + sp);
@@ -112,7 +121,7 @@ export const DEF = {
 function buildEnemyModel(type) {
   const g = new THREE.Group(), parts = {};
   if (type === 'grunt') {
-    const bm = std(0x2a1838, { roughness: 0.55 }), ac = glow(3.4, 0.25, 0.9);
+    const bm = std(0x2a1838, { roughness: 0.34, metalness: 0.5 }), ac = glow(3.4, 0.25, 0.9);
     parts.bodyMat = bm;
     const b = pivot(0, 1.0, 0, g); parts.body = b;
     mesh(new THREE.IcosahedronGeometry(0.55, 0), bm, 0, 0, 0, b).scale.set(1, 1.25, 0.85);
@@ -124,7 +133,7 @@ function buildEnemyModel(type) {
     parts.legL = pivot(-0.24, 0.55, 0, g); parts.legR = pivot(0.24, 0.55, 0, g);
     for (const l of [parts.legL, parts.legR]) mesh(box(0.2, 0.58, 0.24), bm, 0, -0.27, 0, l);
   } else if (type === 'caster') {
-    const bm = std(0x14263a, { roughness: 0.5 }), ac = glow(0.4, 2.6, 3.6);
+    const bm = std(0x14263a, { roughness: 0.3, metalness: 0.55 }), ac = glow(0.4, 2.6, 3.6);
     parts.bodyMat = bm;
     const b = pivot(0, 0.5, 0, g); parts.body = b;
     mesh(new THREE.ConeGeometry(0.62, 1.9, 6), bm, 0, 0.95, 0, b);
@@ -135,7 +144,7 @@ function buildEnemyModel(type) {
     for (let i = 0; i < 3; i++) { const a = i * 2.094; mesh(new THREE.OctahedronGeometry(0.15, 0), ac, Math.cos(a) * 0.95, 0, Math.sin(a) * 0.95, parts.orbit).castShadow = false; }
   } else {
     const boss = type === 'boss';
-    const bm = std(boss ? 0x30121a : 0x231a30, { roughness: 0.5 }), ac = boss ? glow(4.5, 1.3, 0.2) : glow(3.6, 0.5, 0.25);
+    const bm = std(boss ? 0x3a141c : 0x271c36, { roughness: 0.32, metalness: 0.55 }), ac = boss ? glow(4.5, 1.3, 0.2) : glow(3.6, 0.5, 0.25);
     parts.bodyMat = bm;
     const b = pivot(0, 1.55, 0, g); parts.body = b;
     mesh(new THREE.DodecahedronGeometry(1.0, 0), bm, 0, 0, 0, b).scale.set(1.15, 1.1, 0.9);
@@ -203,7 +212,7 @@ export class Enemy {
         this.t += dt; const k = Math.min(1, this.t / 0.85);
         this.y = -(this.def.h + 0.3) * (1 - k) * (1 - k);
         if (Math.random() < dt * 60) G.fx.emit(this.x + (Math.random() - 0.5) * this.r * 2, 0.1, this.z + (Math.random() - 0.5) * this.r * 2, 0, 2 + Math.random() * 3, 0, 1.6, 0.3, 2.4, 0.4, 0.6, 0, 1);
-        if (k >= 1) { this.y = 0; this.set('chase'); }
+        if (k >= 1) { this.y = 0; this.set('chase'); if (Math.random() < 0.4) G.sfx('growl'); }
         break;
       }
       case 'stagger': this.t -= dt; lean = -0.35; if (this.t <= 0) this.set('chase'); break;
@@ -257,7 +266,7 @@ export class Enemy {
             this.set('recover', 0.8);
           } else { // slam
             const R = this.type === 'boss' ? 6.5 : 4.3;
-            G.gfx.ring(this.tx, this.tz, 0.5, R * 1.25, 0.45, 0xff5a2a, 3); G.fx.burst(this.tx, 0.2, this.tz, 40, [3, 1, 0.3], 11, 0.5, 0.6, 14, 0.8);
+            G.gfx.ring(this.tx, this.tz, 0.5, R * 1.25, 0.45, 0xff5a2a, 3); G.gfx.scorch(this.tx, this.tz, R * 0.9); G.fx.burst(this.tx, 0.2, this.tz, 40, [3, 1, 0.3], 11, 0.5, 0.6, 14, 0.8);
             G.shake(this.type === 'boss' ? 0.9 : 0.55); G.sfx('slam');
             if (Math.hypot(h.pos.x - this.tx, h.pos.z - this.tz) < R) G.damageHero(this.dmg, this.x, this.z);
             this.set('recover', this.type === 'boss' ? 1.0 : 1.15);
