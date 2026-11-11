@@ -1,0 +1,7 @@
+{
+  "appId": "com.braisegame.app",
+  "appName": "Braise",
+  "webDir": "www",
+  "backgroundColor": "#0b0a12",
+  "android": { "backgroundColor": "#0b0a12" }
+}

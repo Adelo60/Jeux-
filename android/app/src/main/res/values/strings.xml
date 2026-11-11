@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Braise</string>
+    <string name="title_activity_main">Braise</string>
+    <string name="package_name">com.braisegame.app</string>
+    <string name="custom_url_scheme">com.braisegame.app</string>
+    <!-- Identifiant de TEST Google : à remplacer par ton identifiant d'application AdMob avant publication -->
+    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
+</resources>
