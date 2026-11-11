@@ -71,7 +71,7 @@ export class Particles {
 export class Trail {
   constructor(scene, n = 14, color = [1.3, 0.45, 0.09]) {
     this.n = n; this.color = color;
-    this.p = new Float32Array(n * 6); this.c = new Float32Array(n * 6); this.pw = new Float32Array(n);
+    this.p = new Float32Array(n * 6); this.c = new Float32Array(n * 6); this.pw = new Float32Array(n); this.tm = new Float32Array(n);
     const idx = [];
     for (let i = 0; i < n - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     const g = new THREE.BufferGeometry();
@@ -84,12 +84,12 @@ export class Trail {
     this.mesh.frustumCulled = false; this.mesh.renderOrder = 4;
     scene.add(this.mesh);
   }
-  push(a, b, power) {
-    const { p, pw, n } = this;
-    p.copyWithin(6, 0, (n - 1) * 6); pw.copyWithin(1, 0, n - 1);
+  push(a, b, power, now = 0) {
+    const { p, pw, n, tm } = this;
+    p.copyWithin(6, 0, (n - 1) * 6); pw.copyWithin(1, 0, n - 1); tm.copyWithin(1, 0, n - 1); tm[0] = now;
     p[0] = a.x; p[1] = a.y; p[2] = a.z; p[3] = b.x; p[4] = b.y; p[5] = b.z; pw[0] = power;
     for (let i = 0; i < n; i++) {
-      const k = pw[i] * (1 - i / (n - 1));
+      const k = pw[i] * (1 - i / (n - 1)) * Math.max(0, 1 - (now - tm[i]) / 0.17);
       for (let v = 0; v < 2; v++) {
         const j = i * 6 + v * 3, m = v ? k * k : 0;
         this.c[j] = this.color[0] * m; this.c[j + 1] = this.color[1] * m; this.c[j + 2] = this.color[2] * m;
@@ -172,8 +172,8 @@ export const GradeShader = {
     void main(){ vec2 d=vUv-.5; float r2=dot(d,d); vec2 o=d*r2*(.014+.04*uFx);
       vec3 c=vec3(texture2D(tDiffuse,vUv+o).r,texture2D(tDiffuse,vUv).g,texture2D(tDiffuse,vUv-o).b);
       float l=dot(c,vec3(.299,.587,.114));
-      c=mix(vec3(l),c,1.14-.55*uFx);
-      c*=mix(vec3(.9,.97,1.15),vec3(1.1,1.,.88),smoothstep(0.,.9,l));
+      c=mix(vec3(l),c,1.04-.5*uFx);
+      c*=mix(vec3(.94,.98,1.1),vec3(1.08,1.,.9),smoothstep(0.,.9,l));
       c+=vec3(.08,.3,.55)*uFx*.05;
       c*=1.-r2*(.75+uFx*.9);
       float n=fract(sin(dot(vUv*vec2(1920.,1080.)+uTime*61.,vec2(12.9898,78.233)))*43758.5453); c*=1.+(n-.5)*.05;

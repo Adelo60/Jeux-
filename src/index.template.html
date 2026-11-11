@@ -126,7 +126,10 @@ p.sub{color:var(--dim);font-size:13px;letter-spacing:.1em;margin:8px 0 18px}
 #ad{position:fixed;inset:0;z-index:20;background:#05040a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
 #ad .box{border:1px dashed #7dd6ff;padding:26px 30px;color:#cfefff;max-width:420px;font-size:14px;line-height:1.5}
 #adt{font-size:40px;font-weight:700}
-@media (max-height:500px){#title{margin-top:0}#title h1{font-size:min(12vw,20vh)}#title p{margin-top:4px;font-size:10px}.btn{padding:9px 18px;min-width:220px;font-size:12px}.col{gap:7px}#over .col,#pauseS .col{flex-direction:row;flex-wrap:wrap;justify-content:center;max-width:520px}#stats{margin:0 0 10px}#stats b{font-size:20px}p.sub{margin:4px 0 8px}h3.t{font-size:21px}.chip{padding:6px 12px;font-size:11px}.card{min-height:0;padding:11px}#shopl{gap:5px;margin-bottom:8px}.it{padding:6px 12px}}
+@media (max-height:500px){#btns{transform:scale(.84)}#boss{width:44vw;top:calc(56px + var(--st))}#bossname{font-size:11px;margin-bottom:3px}#title{margin-top:0}#title h1{font-size:min(12vw,20vh)}#title p{margin-top:4px;font-size:10px}.btn{padding:9px 18px;min-width:220px;font-size:12px}.col{gap:7px}#over .col,#pauseS .col{flex-direction:row;flex-wrap:wrap;justify-content:center;max-width:520px}#stats{margin:0 0 10px}#stats b{font-size:20px}p.sub{margin:4px 0 8px}h3.t{font-size:21px}.chip{padding:6px 12px;font-size:11px}.card{min-height:0;padding:11px}#shopl{gap:5px;margin-bottom:8px}.it{padding:6px 12px}}
+#load{position:fixed;inset:0;z-index:30;background:#07060c;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:var(--dim);letter-spacing:.2em;font-size:12px}
+#load h1{font-size:clamp(40px,11vw,90px);font-weight:500;letter-spacing:.3em;margin-right:-.3em;background:linear-gradient(#fff6e0 20%,#ffb659 55%,#d1410f);-webkit-background-clip:text;background-clip:text;color:transparent}
+.lbar{width:min(60vw,280px);height:3px;background:rgba(232,180,85,.2)}.lbar i{display:block;height:100%;background:var(--ember);transform-origin:left;transform:scaleX(0);transition:transform .3s}
 #rot{position:fixed;left:50%;bottom:calc(8px + var(--sb));transform:translateX(-50%);font-size:10px;color:var(--dim);letter-spacing:.1em;z-index:6;pointer-events:none}
 </style>
 </head>
@@ -201,6 +204,7 @@ p.sub{color:var(--dim);font-size:13px;letter-spacing:.1em;margin:8px 0 18px}
 </section>
 
 <div id="ad" class="hidden"><div class="box"><b>Emplacement publicitaire (démo)</b><br>Ici s'affichera une vraie pub récompensée (AdMob) une fois le jeu publié sur les stores.</div><div id="adt">3</div></div>
+<div id="load"><h1 class="serif">BRAISE</h1><div class="lbar"><i id="loadbar"></i></div><p>Chargement…</p></div>
 <!--BUNDLE-->
 </body>
 </html>
