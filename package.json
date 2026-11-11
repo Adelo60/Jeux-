@@ -1,0 +1,24 @@
+{
+  "name": "braise",
+  "version": "1.0.0",
+  "description": "Jeux vidéo",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Adelo60/Jeux-.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Adelo60/Jeux-/issues"
+  },
+  "homepage": "https://github.com/Adelo60/Jeux-#readme",
+  "dependencies": {
+    "esbuild": "^0.28.2",
+    "three": "^0.187.0"
+  },
+  "private": true
+}
