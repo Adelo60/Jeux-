@@ -11,6 +11,9 @@ export const assets = {};
 const CLIPS = {
   paladin: { idle: ['idle', 0, 3.6], run: ['run'], s0: ['slash1', 0.45, 1.2], s1: ['attack', 0.3, 1.0], s2: ['slash5', 0.9, 1.85], fury: ['slash5', 0.75, 1.95], thrust: ['gattack', 0.15, 0.9], jump: ['jump'], death: ['death', 0, 2.7] },
   mutant: { idle: ['midle', 0, 2.6], run: ['mrun'], walk: ['mwalk'], atk: ['mpunch'], cast: ['mroar', 0.7, 2.3], die: ['mdie', 0.3, 2.7] },
+  ganfaul: { idle: ['midle', 0, 2.6], walk: ['mwalk'], cast: ['mroar', 0.7, 2.3], die: ['mdie', 0.3, 2.7] },
+  ghoul: { idle: ['midle', 0, 2.6], run: ['mrun'], atk: ['mpunch'], die: ['mdie', 0.3, 2.7] },
+  maw: { idle: ['midle', 0, 2.6], run: ['mrun'], walk: ['mwalk'], slam: ['mjump', 0.9, 2.7], roar: ['mroar', 0.7, 2.5], die: ['mdie', 0.3, 2.7] },
   warrok: { idle: ['midle', 0, 2.6], run: ['mrun'], walk: ['mwalk'], slam: ['mjump', 0.9, 2.7], roar: ['mroar', 0.7, 2.5], die: ['mdie', 0.3, 2.7] },
 };
 

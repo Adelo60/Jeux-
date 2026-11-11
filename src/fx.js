@@ -67,13 +67,15 @@ export class Particles {
   }
 }
 
-// ---------- Traînée d'épée ----------
+// ---------- Traînée d'épée : ruban lissé (Catmull-Rom) qui s'efface avec le temps ----------
+const SUB = 5;
 export class Trail {
-  constructor(scene, n = 14, color = [1.3, 0.45, 0.09]) {
-    this.n = n; this.color = color;
-    this.p = new Float32Array(n * 6); this.c = new Float32Array(n * 6); this.pw = new Float32Array(n); this.tm = new Float32Array(n);
+  constructor(scene, n = 12, color = [1.3, 0.45, 0.09]) {
+    this.n = n; this.color = color; this.m = (n - 1) * SUB + 1;
+    this.ra = new Float32Array(n * 3); this.rb = new Float32Array(n * 3); this.pw = new Float32Array(n); this.tm = new Float32Array(n);
+    this.p = new Float32Array(this.m * 6); this.c = new Float32Array(this.m * 6);
     const idx = [];
-    for (let i = 0; i < n - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    for (let i = 0; i < this.m - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(this.p, 3));
     g.setAttribute('color', new THREE.BufferAttribute(this.c, 3));
@@ -85,15 +87,18 @@ export class Trail {
     scene.add(this.mesh);
   }
   push(a, b, power, now = 0) {
-    const { p, pw, n, tm } = this;
-    p.copyWithin(6, 0, (n - 1) * 6); pw.copyWithin(1, 0, n - 1); tm.copyWithin(1, 0, n - 1); tm[0] = now;
-    p[0] = a.x; p[1] = a.y; p[2] = a.z; p[3] = b.x; p[4] = b.y; p[5] = b.z; pw[0] = power;
-    for (let i = 0; i < n; i++) {
-      const k = pw[i] * (1 - i / (n - 1)) * Math.max(0, 1 - (now - tm[i]) / 0.17);
-      for (let v = 0; v < 2; v++) {
-        const j = i * 6 + v * 3, m = v ? k * k : 0;
-        this.c[j] = this.color[0] * m; this.c[j + 1] = this.color[1] * m; this.c[j + 2] = this.color[2] * m;
-      }
+    const { ra, rb, pw, tm, n, p, c } = this;
+    ra.copyWithin(3, 0, (n - 1) * 3); rb.copyWithin(3, 0, (n - 1) * 3); pw.copyWithin(1, 0, n - 1); tm.copyWithin(1, 0, n - 1);
+    ra[0] = a.x; ra[1] = a.y; ra[2] = a.z; rb[0] = b.x; rb[1] = b.y; rb[2] = b.z; pw[0] = power; tm[0] = now;
+    const cr = (arr, i0, i1, i2, i3, t, k) => { const p0 = arr[i0 * 3 + k], p1 = arr[i1 * 3 + k], p2 = arr[i2 * 3 + k], p3 = arr[i3 * 3 + k], t2 = t * t, t3 = t2 * t;
+      return 0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (3 * p1 - p0 - 3 * p2 + p3) * t3); };
+    for (let v = 0; v < this.m; v++) {
+      const s = Math.min(n - 2, Math.floor(v / SUB)), t = v / SUB - s, i0 = Math.max(0, s - 1), i1 = s, i2 = s + 1, i3 = Math.min(n - 1, s + 2), j = v * 6;
+      for (let k = 0; k < 3; k++) { p[j + k] = cr(ra, i0, i1, i2, i3, t, k); p[j + 3 + k] = cr(rb, i0, i1, i2, i3, t, k); }
+      const age = now - (tm[i1] + (tm[i2] - tm[i1]) * t), w = (pw[i1] + (pw[i2] - pw[i1]) * t) * Math.max(0, 1 - age / 0.2) * (1 - v / (this.m - 1));
+      const e = w * w;
+      c[j] = this.color[0] * e * 0.15; c[j + 1] = this.color[1] * e * 0.15; c[j + 2] = this.color[2] * e * 0.15;
+      c[j + 3] = this.color[0] * e; c[j + 4] = this.color[1] * e; c[j + 5] = this.color[2] * e;
     }
     this.mesh.geometry.attributes.position.needsUpdate = true;
     this.mesh.geometry.attributes.color.needsUpdate = true;

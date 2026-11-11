@@ -170,8 +170,8 @@ function startWave(n) {
   const boss = n % 5 === 0; let budget = 3 + n * 2.1;
   if (boss) { G.queue.push('boss'); budget *= 0.35; }
   while (budget > 0) {
-    const o = ['grunt', 'grunt']; if (n >= 2) o.push('caster'); if (n >= 3) o.push('brute'); if (n >= 7) o.push('brute', 'caster');
-    const t = o[(Math.random() * o.length) | 0]; G.queue.push(t); budget -= { grunt: 1, caster: 1.7, brute: 3.4 }[t];
+    const o = ['grunt', 'grunt']; if (n >= 2) o.push('caster', 'ghoul'); if (n >= 4) o.push('ghoul'); if (n >= 3) o.push('brute'); if (n >= 7) o.push('brute', 'caster');
+    const t = o[(Math.random() * o.length) | 0]; G.queue.push(t); budget -= { grunt: 1, ghoul: 0.8, caster: 1.7, brute: 3.4 }[t];
   }
   $('wavet').textContent = 'VAGUE ' + n;
   banner(boss ? 'COLOSSE DES CENDRES' : 'VAGUE ' + n, boss ? 'Le gardien déchu s’éveille' : n === 1 ? 'Défends le dernier brasier' : '');

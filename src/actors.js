@@ -79,9 +79,10 @@ export function buildHero() {
 // =================== ENNEMIS ===================
 export const DEF = {
   grunt: { hp: 30, speed: 4.5, r: 0.7, dmg: 10, braise: 2, h: 2.0, model: 'mutant', size: 2.0, move: 'run', ref: 4.5 },
-  caster: { hp: 24, speed: 3.3, r: 0.65, dmg: 9, braise: 3, h: 1.9, model: 'mutant', size: 1.8, move: 'walk', ref: 2.6, tint: [0.45, 0.75, 1.5], em: [0, 0.03, 0.09] },
+  ghoul: { hp: 16, speed: 6.6, r: 0.55, dmg: 7, braise: 2, h: 1.9, model: 'ghoul', size: 1.85, move: 'run', ref: 5, ai: 'grunt', wind: 0.34 },
+  caster: { hp: 24, speed: 3.3, r: 0.65, dmg: 9, braise: 3, h: 2.1, model: 'ganfaul', size: 2.1, move: 'walk', ref: 2.6 },
   brute: { hp: 125, speed: 2.7, r: 1.3, dmg: 22, braise: 7, h: 3.3, model: 'warrok', size: 3.3, move: 'walk', ref: 2.4 },
-  boss: { hp: 700, speed: 3.4, r: 2.3, dmg: 26, braise: 50, h: 5.6, model: 'warrok', size: 5.6, move: 'walk', ref: 3.2, tint: [1.0, 0.62, 0.58], em: [0.045, 0.006, 0] },
+  boss: { hp: 700, speed: 3.4, r: 2.3, dmg: 26, braise: 50, h: 5.6, model: 'maw', size: 5.6, move: 'walk', ref: 3.2, em: [0.03, 0.004, 0] },
 };
 
 function buildEnemyModel(type) {
@@ -96,7 +97,7 @@ function buildEnemyModel(type) {
     const cm = glow(0.4, 2.6, 3.6);
     for (let i = 0; i < 3; i++) { const a = i * 2.094, m = new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 0), cm); m.position.set(Math.cos(a) * 1.05, Math.sin(a * 2) * 0.2, Math.sin(a) * 1.05); m.scale.y = 1.8; parts.orbit.add(m); }
   }
-  if (type === 'boss') { const l = new THREE.PointLight(0xff4a1a, 30, 14, 1.8); l.position.y = 3.5; g.add(l); }
+  if (type === 'boss') { const l = new THREE.PointLight(0xff5a2a, 22, 16, 1.8); l.position.set(0, 2.2, 3.6); g.add(l); }
   const bar = new THREE.Group();
   const bg = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.12), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6, depthTest: false, fog: false }));
   const fgGeo = new THREE.PlaneGeometry(1.06, 0.08); fgGeo.translate(0.53, 0, 0);
@@ -111,7 +112,7 @@ const angLerp = (a, b, t) => { const d = ((b - a + PI) % (2 * PI) + 2 * PI) % (2
 export class Enemy {
   constructor(type, G, x, z, hpMul = 1, dmgMul = 1) {
     const d = DEF[type];
-    Object.assign(this, { type, G, x, z, def: d, r: d.r, hp: d.hp * hpMul, maxHp: d.hp * hpMul, dmg: d.dmg * dmgMul });
+    Object.assign(this, { type, ai: d.ai || type, G, x, z, def: d, r: d.r, hp: d.hp * hpMul, maxHp: d.hp * hpMul, dmg: d.dmg * dmgMul });
     this.state = 'spawn'; this.t = 0; this.face = Math.atan2(G.hero.pos.x - x, G.hero.pos.z - z);
     this.kx = 0; this.kz = 0; this.flash = 0; this.cd = 0.3 + Math.random() * 0.8; this.ph = Math.random() * 9;
     this.burnT = 0; this.burnDps = 0; this.burnAcc = 0; this.dead = false; this.gone = false; this.y = 0; this.hitDone = false;
@@ -158,9 +159,9 @@ export class Enemy {
       }
       case 'chase': {
         this.face = angLerp(this.face, toHero, dt * (big ? 4 : 9)); this.cd -= dt;
-        if (this.type === 'grunt') {
+        if (this.ai === 'grunt') {
           if (d > 1.9) move(dx, dz, this.def.speed);
-          if (d < 2.4 && this.cd <= 0) this.wind(0.45, 'atk', 0.42);
+          if (d < 2.4 && this.cd <= 0) this.wind(this.def.wind || 0.45, 'atk', 0.42);
         } else if (this.type === 'caster') {
           if (d < 7) move(-dx, -dz, this.def.speed); else if (d > 13) move(dx, dz, this.def.speed);
           else move(-dz * this.strafe, dx * this.strafe, this.def.speed * 0.6);
@@ -187,10 +188,10 @@ export class Enemy {
       }
       case 'windup': {
         this.t -= dt; atk(); glowR += 0.14 * (0.5 + 0.5 * Math.sin(this.ph + G.time * 30));
-        if (this.type === 'grunt') this.face = angLerp(this.face, toHero, dt * 5);
+        if (this.ai === 'grunt') this.face = angLerp(this.face, toHero, dt * 5);
         else if (this.type === 'caster') { this.face = angLerp(this.face, toHero, dt * 8); P.orbit.rotation.y += dt * 14; }
         if (this.t <= 0) {
-          if (this.type === 'grunt') { this.set('strike', 0.2); G.sfx('swipe'); }
+          if (this.ai === 'grunt') { this.set('strike', 0.2); G.sfx('swipe'); }
           else if (this.type === 'caster') { G.shoot(this.x + fx * 0.8, 1.6, this.z + fz * 0.8, dx, dz, 11, this.dmg, this); this.cd = 2.2 + Math.random() * 1.4; this.set('recover', 0.5); }
           else if (this.type === 'boss' && this.atk === 'charge') { this.set('strike', 0.62); G.sfx('roar'); }
           else if (this.type === 'boss' && this.atk === 'orbs') {
@@ -208,7 +209,7 @@ export class Enemy {
       }
       case 'strike': {
         this.t -= dt;
-        if (this.type === 'grunt') {
+        if (this.ai === 'grunt') {
           atk(); move(fx, fz, 10); lean = 0.15;
           if (!this.hitDone && d < 2.1) { this.hitDone = true; G.damageHero(this.dmg, this.x, this.z); }
           if (this.t <= 0) { this.cd = 0.5 + Math.random() * 0.9; this.set('recover', 0.5); }

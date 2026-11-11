@@ -42,7 +42,7 @@ export function buildWorld(scene, fx, mobile) {
   const skyMesh = new THREE.Mesh(new THREE.SphereGeometry(420, 48, 24), skyMat); skyMesh.rotation.y = SKY_ROT; scene.add(skyMesh);
   // scène d'environnement (reflets sur les armures et les dalles)
   const envScene = new THREE.Scene();
-  { const e = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.MeshBasicMaterial({ map: assets.sky, side: THREE.BackSide, color: new THREE.Color(0.8, 0.68, 0.78) })); e.rotation.y = SKY_ROT; envScene.add(e); }
+  { const e = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.MeshBasicMaterial({ map: assets.sky, side: THREE.BackSide, color: new THREE.Color(0.68, 0.68, 0.86) })); e.rotation.y = SKY_ROT; envScene.add(e); }
   for (let i = 0; i < 4; i++) { const a = i * (TAU / 4) + TAU / 8; const m = new THREE.Mesh(new THREE.SphereGeometry(3.5, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(6, 2.2, 0.6) })); m.position.set(Math.cos(a) * 22, 4, Math.sin(a) * 22); envScene.add(m); }
   const em = new THREE.Mesh(new THREE.SphereGeometry(4, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.8, 2.6) })); em.position.set(-14, 30, -34); envScene.add(em);
 
@@ -73,7 +73,7 @@ export function buildWorld(scene, fx, mobile) {
   const rock = (s, d) => { const g = new THREE.IcosahedronGeometry(s, d), p = g.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), n = 1 + 0.16 * Math.sin(x * 3.1 / s + y * 2.3 / s) + 0.12 * Math.sin(z * 4.3 / s + x * 1.7 / s); p.setXYZ(i, x * n, y * n, z * n); } g.computeVertexNormals(); return g; };
   const gt = groundTextures(512);
   const floor = new THREE.Mesh(new THREE.CircleGeometry(24, 72).rotateX(-Math.PI / 2),
-    new THREE.MeshStandardMaterial({ map: assets.floor, normalMap: assets.floor_n, normalScale: new THREE.Vector2(1.6, 1.6), color: 0x8d8a96, roughnessMap: assets.floor_arm, aoMap: assets.floor_arm, aoMapIntensity: 1.2, roughness: 0.9, metalness: 0.06 }));
+    new THREE.MeshStandardMaterial({ map: assets.floor, normalMap: assets.floor_n, normalScale: new THREE.Vector2(1.6, 1.6), color: 0x7d8496, roughnessMap: assets.floor_arm, aoMap: assets.floor_arm, aoMapIntensity: 1.2, roughness: 0.9, metalness: 0.06 }));
   floor.receiveShadow = true; scene.add(floor);
   const rimWall = new THREE.Mesh(new THREE.CylinderGeometry(24, 25.5, 2.4, 72, 1, true), stone); rimWall.position.y = -1.2; scene.add(rimWall);
   const land = new THREE.Mesh(new THREE.CircleGeometry(280, 48).rotateX(-Math.PI / 2), dark); land.position.y = -2.2; scene.add(land);
