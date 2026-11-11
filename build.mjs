@@ -1,15 +1,14 @@
 // Construit le jeu en UN seul fichier index.html autonome (modèles, animations et textures inclus).
 import { build } from 'esbuild';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 
-const b64 = f => readFileSync('assets/' + f).toString('base64');
+const files = readdirSync('assets'), b64 = f => readFileSync('assets/' + f).toString('base64');
+const glb = files.filter(f => f.endsWith('.glb')).map(f => `    ${f.slice(0, -4)}: '${b64(f)}',`).join('\n');
+const img = files.filter(f => f.endsWith('.webp')).map(f => `    ${f.slice(0, -5)}: 'data:image/webp;base64,${b64(f)}',`).join('\n');
 writeFileSync('src/assets.gen.js', `// Fichier généré par build.mjs — ne pas modifier.
 export const A = {
-  paladin: '${b64('paladin.glb')}',
-  mutant: '${b64('mutant.glb')}',
-  warrok: '${b64('warrok.glb')}',
-  floor: 'data:image/webp;base64,${b64('floor.webp')}',
-  wall: 'data:image/webp;base64,${b64('wall.webp')}',
+  glb: {\n${glb}\n  },
+  img: {\n${img}\n  },
   anims: ${readFileSync('assets/anims.json', 'utf8')},
 };
 `);

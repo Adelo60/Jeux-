@@ -51,6 +51,11 @@ export function buildHero() {
   // Épée dans la main droite, placée en pose de repos (bras à l'horizontale, lame vers l'avant)
   const S = makeSword(), hand = findBone(model, 'RightHand'), hp = hand.getWorldPosition(new THREE.Vector3());
   S.g.position.set(hp.x - 0.1, hp.y - 0.03, hp.z + 0.02); S.g.rotation.x = PI / 2; model.add(S.g); S.g.updateMatrixWorld(true); hand.attach(S.g);
+  // Bouclier sanglé sur l'avant-bras gauche
+  { const SH = assets.shield, sh = SH.scene.clone(), wrap = new THREE.Group(), fa = findBone(model, 'LeftForeArm'), lh = findBone(model, 'LeftHand');
+    const k = 0.74 / Math.max(SH.size.x, SH.size.y, SH.size.z), a = fa.getWorldPosition(new THREE.Vector3()), b = lh.getWorldPosition(new THREE.Vector3());
+    sh.scale.setScalar(k); sh.position.set(-(SH.min.x + SH.size.x / 2) * k, -(SH.min.y + SH.size.y / 2) * k, -(SH.min.z + SH.size.z / 2) * k); wrap.add(sh);
+    wrap.position.copy(a).lerp(b, 0.6); wrap.position.y += 0.07; wrap.rotation.set(-PI / 2, 0, 0); model.add(wrap); wrap.updateMatrixWorld(true); fa.attach(wrap); }
   const SC = 1.95 / A.height, root = new THREE.Group(), pivot = new THREE.Group(), holder = new THREE.Group();
   holder.add(model); holder.scale.setScalar(SC); holder.position.y = -1; pivot.position.y = 1; pivot.add(holder); root.add(pivot);
   const key = new THREE.PointLight(0xffe2c4, 26, 11, 1.6); key.position.set(0, 3.4, 2.6); root.add(key);

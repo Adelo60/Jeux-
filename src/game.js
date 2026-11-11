@@ -31,7 +31,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(48, 1, 0.3, 700);
 const fx = new Particles(scene), gfx = new GroundFx(scene), trail = new Trail(scene);
 const world = buildWorld(scene, fx, mobile);
-{ const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(world.envScene, 0.02).texture; scene.environmentIntensity = 0.42; pm.dispose(); }
+{ const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(world.envScene, 0.02).texture; scene.environmentIntensity = 0.6; pm.dispose(); }
 
 let composer = null, bloom = null, grade = null, quality = 'high';
 function buildComposer() {
@@ -463,7 +463,7 @@ const camPos = new THREE.Vector3(0, 8, 18), camLook = new THREE.Vector3(0, 1.5, 
 function updateCamera(rdt, now) {
   const portrait = innerHeight > innerWidth;
   if (G.state === 'menu' || G.state === 'shop') {
-    const a = now * 0.00012 + 0.6; tmp.set(Math.sin(a) * (portrait ? 9.5 : 7.5), portrait ? 3.4 : 2.6, Math.cos(a) * (portrait ? 9.5 : 7.5)); tmp2.set(0, portrait ? 2.2 : 1.6, 0);
+    const a = now * 0.00012 + 0.6; tmp.set(Math.sin(a) * (portrait ? 9 : 6.6), portrait ? 2.4 : 1.5, Math.cos(a) * (portrait ? 9 : 6.6)); tmp2.set(0, portrait ? 2.4 : 1.75, 0);
     camPos.lerp(tmp, 1 - Math.exp(-2.5 * rdt)); camLook.lerp(tmp2, 1 - Math.exp(-2.5 * rdt));
   } else {
     const cine = G.cine > 0 && G.cineT, f = cine ? tmp2.set(G.cineT.x, 2.5, G.cineT.z) : tmp2.copy(hero.pos);
